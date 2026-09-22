@@ -1,0 +1,10 @@
+FROM postgres:16-alpine
+
+WORKDIR /migrations
+
+COPY infra/migrate.sh /usr/local/bin/rag-migrate
+COPY infra/sql/001_initial_schema.sql ./001_initial_schema.sql
+
+RUN chmod +x /usr/local/bin/rag-migrate
+
+ENTRYPOINT ["/usr/local/bin/rag-migrate"]

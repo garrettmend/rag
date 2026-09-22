@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.mvn
+.vscode
+target
+terraform/.terraform
+terraform/*.tfstate
+terraform/*.tfstate.*
+*.iml
+*.log
+.env

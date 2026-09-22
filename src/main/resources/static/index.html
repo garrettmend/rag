@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stacks</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,450;9..144,560&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F1F2ED;
+    --panel: #FAFAF6;
+    --ink: #1B2A22;
+    --ink-soft: #55645C;
+    --line: #D6D9CE;
+    --accent: #C98F2B;
+    --accent-soft: #F3E3C4;
+    --ready: #3F6B4F;
+    --pending: #5B6B8C;
+    --failed: #9C4141;
+    --radius: 6px;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14201A;
+      --panel: #1B2921;
+      --ink: #EDEFE9;
+      --ink-soft: #9FAEA5;
+      --line: #2E3E34;
+      --accent: #E0A63C;
+      --accent-soft: #3A2F16;
+      --ready: #6FA383;
+      --pending: #8593B8;
+      --failed: #C77373;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .app {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  .app-header h1 {
+    font-family: var(--font-display);
+    font-weight: 560;
+    font-size: 2.1rem;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .tagline {
+    color: var(--ink-soft);
+    max-width: 52ch;
+    margin: 0 0 32px;
+  }
+
+  .error-banner {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    font-size: 0.88rem;
+  }
+
+  .layout {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+
+  .sources-panel { flex: 0 0 300px; }
+  .ask-panel { flex: 1 1 auto; min-width: 0; }
+
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 560;
+    font-size: 1.05rem;
+    margin: 24px 0 12px;
+  }
+
+  .sources-panel h2:first-of-type { margin-top: 22px; }
+
+  label {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  input[type="text"]:focus, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .tenant-input-row { display: flex; gap: 8px; }
+  .tenant-input-row input { flex: 1; min-width: 0; }
+
+  button {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--panel);
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+
+  button:disabled { opacity: 0.4; cursor: default; }
+
+  button.secondary {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .upload-row { margin-top: 18px; }
+
+  .upload-label {
+    display: block;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    margin-bottom: 10px;
+  }
+
+  .upload-label.has-file { color: var(--ink); border-style: solid; }
+
+  #ingestBtn { width: 100%; }
+
+  .documents-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .documents-list li {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .doc-name {
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .status-badge {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .status-pending, .status-processing { background: color-mix(in srgb, var(--pending) 18%, transparent); color: var(--pending); }
+  .status-ready { background: color-mix(in srgb, var(--ready) 18%, transparent); color: var(--ready); }
+  .status-failed { background: color-mix(in srgb, var(--failed) 18%, transparent); color: var(--failed); }
+
+  .empty-state {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    font-style: italic;
+    margin: 0;
+  }
+
+  .ask-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .ask-form input[type="text"] { font-family: var(--font-body); font-size: 0.95rem; }
+
+  .stream-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    margin: 0;
+  }
+
+  .stream-toggle input { width: auto; }
+
+  .answer-area {
+    font-size: 1rem;
+    line-height: 1.65;
+    min-height: 60px;
+  }
+
+  .cite-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    margin: 0 1px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    vertical-align: 2px;
+  }
+
+  .cite-mark:hover { background: var(--accent-soft); }
+
+  .citations-list {
+    list-style: none;
+    margin: 24px 0 0;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .citations-list li {
+    display: flex;
+    gap: 10px;
+    border-radius: var(--radius);
+    padding: 6px;
+    transition: background 0.5s ease;
+  }
+
+  .citations-list li.flash { background: var(--accent-soft); }
+
+  .citation-index {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  .citations-list p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 760px) {
+    .layout { flex-direction: column; }
+    .sources-panel { flex-basis: auto; width: 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>Stacks</h1>
+      <p class="tagline">Upload a document, then ask questions about it — answers are grounded in the source text, with citations you can check.</p>
+    </header>
+
+    <div id="errorBanner" class="error-banner" hidden></div>
+
+    <div class="layout">
+      <aside class="panel sources-panel">
+        <label for="tenantId">Tenant</label>
+        <div class="tenant-input-row">
+          <input id="tenantId" type="text" spellcheck="false">
+          <button id="newTenantBtn" class="secondary" type="button" title="Generate a new tenant ID">New</button>
+        </div>
+
+        <div class="upload-row">
+          <label id="uploadLabel" for="fileInput" class="upload-label">Choose a .txt file</label>
+          <input id="fileInput" type="file" accept=".txt" hidden>
+          <button id="ingestBtn" type="button" disabled>Ingest</button>
+        </div>
+
+        <h2>Sources</h2>
+        <ul id="documentsList" class="documents-list">
+          <li class="empty-state" style="border: none; padding: 0;">No documents yet — upload one to get started.</li>
+        </ul>
+      </aside>
+
+      <main class="panel ask-panel">
+        <form id="askForm" class="ask-form">
+          <input id="questionInput" type="text" placeholder="Ask a question about your documents" autocomplete="off">
+          <label class="stream-toggle">
+            <input id="streamToggle" type="checkbox" checked>
+            Stream
+          </label>
+          <button type="submit" id="askBtn">Ask</button>
+        </form>
+
+        <div id="answerArea" class="answer-area">
+          <p class="empty-state">Ask a question once you've ingested a document.</p>
+        </div>
+
+        <ol id="citationsList" class="citations-list"></ol>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const tenantIdInput = document.getElementById('tenantId');
+    const newTenantBtn = document.getElementById('newTenantBtn');
+    const fileInput = document.getElementById('fileInput');
+    const uploadLabel = document.getElementById('uploadLabel');
+    const ingestBtn = document.getElementById('ingestBtn');
+    const documentsList = document.getElementById('documentsList');
+    const askForm = document.getElementById('askForm');
+    const questionInput = document.getElementById('questionInput');
+    const streamToggle = document.getElementById('streamToggle');
+    const askBtn = document.getElementById('askBtn');
+    const answerArea = document.getElementById('answerArea');
+    const citationsList = document.getElementById('citationsList');
+    const errorBanner = document.getElementById('errorBanner');
+
+    const TENANT_KEY = 'stacks:tenantId';
+    let tenantId = localStorage.getItem(TENANT_KEY) || crypto.randomUUID();
+    localStorage.setItem(TENANT_KEY, tenantId);
+    tenantIdInput.value = tenantId;
+
+    let selectedFile = null;
+    const pollHandles = {};
+
+    // ---------- helpers ----------
+
+    function showError(message) {
+      errorBanner.textContent = message;
+      errorBanner.hidden = false;
+    }
+    function hideError() {
+      errorBanner.hidden = true;
+    }
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+    function documentsKey(tid) { return `stacks:documents:${tid}`; }
+    function loadDocuments(tid) {
+      try { return JSON.parse(localStorage.getItem(documentsKey(tid)) || '[]'); }
+      catch { return []; }
+    }
+    function saveDocuments(tid, docs) {
+      localStorage.setItem(documentsKey(tid), JSON.stringify(docs));
+    }
+    function statusLabel(status) {
+      return { PENDING: 'Queued', PROCESSING: 'Processing', READY: 'Ready', FAILED: 'Failed', ALREADY_INGESTED: 'Ready' }[status] || status;
+    }
+    function statusClass(status) {
+      if (status === 'READY' || status === 'ALREADY_INGESTED') return 'status-ready';
+      if (status === 'FAILED') return 'status-failed';
+      if (status === 'PROCESSING') return 'status-processing';
+      return 'status-pending';
+    }
+
+    // ---------- API calls ----------
+
+    async function ingestDocument(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/documents', {
+        method: 'POST',
+        headers: { 'X-Tenant-Id': tenantId },
+        body: formData
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      return res.json();
+    }
+
+    async function getDocumentStatus(documentId) {
+      const res = await fetch(`/documents/${documentId}`, {
+        headers: { 'X-Tenant-Id': tenantId }
+      });
+      if (!res.ok) throw new Error(`Status check failed (${res.status})`);
+      return res.json();
+    }
+
+    async function askQuestion(question) {
+      const res = await fetch('/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Tenant-Id': tenantId },
+        body: JSON.stringify({ question })
+      });
+      if (!res.ok) throw new Error(`Query failed (${res.status})`);
+      return res.json();
+    }
+
+    function parseSseEvent(raw) {
+      let event = 'message';
+      const dataLines = [];
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+      }
+      return { event, data: dataLines.join('\n') };
+    }
+
+    // fetch(), not EventSource — EventSource can't send the X-Tenant-Id header.
+    async function streamQuery(question, { onCitations, onDelta, onDone, onError }) {
+      try {
+        const res = await fetch(`/query/stream?question=${encodeURIComponent(question)}`, {
+          headers: { 'X-Tenant-Id': tenantId }
+        });
+        if (!res.ok || !res.body) throw new Error(`Request failed (${res.status})`);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let boundary;
+          while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+            const rawEvent = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+            const { event, data } = parseSseEvent(rawEvent);
+            if (event === 'citations' && data) onCitations(JSON.parse(data));
+            else if (data) onDelta(data);
+          }
+        }
+        onDone();
+      } catch (err) {
+        onError(err);
+      }
+    }
+
+    // ---------- rendering ----------
+
+    function renderDocuments() {
+      const docs = loadDocuments(tenantId);
+      documentsList.innerHTML = '';
+      if (docs.length === 0) {
+        documentsList.innerHTML = '<li class="empty-state" style="border:none;padding:0;">No documents yet — upload one to get started.</li>';
+        return;
+      }
+      for (const doc of docs) {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span class="doc-name" title="${escapeHtml(doc.filename)}">${escapeHtml(doc.filename)}</span>
+          <span class="status-badge ${statusClass(doc.status)}">${statusLabel(doc.status)}</span>
+        `;
+        documentsList.appendChild(li);
+      }
+    }
+
+    function renderAnswerText(rawText) {
+      const escaped = escapeHtml(rawText);
+      answerArea.innerHTML = escaped.replace(/\[(\d+)\]/g, (m, n) =>
+        `<button type="button" class="cite-mark" data-n="${n}">${n}</button>`);
+    }
+
+    function renderCitations(citations) {
+      citationsList.innerHTML = '';
+      citations.forEach((c, i) => {
+        const li = document.createElement('li');
+        li.id = `citation-${i + 1}`;
+        li.innerHTML = `<span class="citation-index">${i + 1}</span><p>${escapeHtml(c.content)}</p>`;
+        citationsList.appendChild(li);
+      });
+    }
+
+    answerArea.addEventListener('click', (e) => {
+      const btn = e.target.closest('.cite-mark');
+      if (!btn) return;
+      const target = document.getElementById(`citation-${btn.dataset.n}`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('flash');
+      setTimeout(() => target.classList.remove('flash'), 900);
+    });
+
+    // ---------- polling ----------
+
+    function pollDocumentStatus(documentId) {
+      if (pollHandles[documentId]) clearInterval(pollHandles[documentId]);
+      pollHandles[documentId] = setInterval(async () => {
+        try {
+          const { status } = await getDocumentStatus(documentId);
+          updateDocumentStatus(documentId, status);
+          if (status === 'READY' || status === 'FAILED') {
+            clearInterval(pollHandles[documentId]);
+            delete pollHandles[documentId];
+          }
+        } catch {
+          clearInterval(pollHandles[documentId]);
+          delete pollHandles[documentId];
+          updateDocumentStatus(documentId, 'FAILED');
+        }
+      }, 2000);
+    }
+
+    function updateDocumentStatus(documentId, status) {
+      const docs = loadDocuments(tenantId);
+      const doc = docs.find(d => d.documentId === documentId);
+      if (doc) {
+        doc.status = status;
+        saveDocuments(tenantId, docs);
+        renderDocuments();
+      }
+    }
+
+    // ---------- tenant switching ----------
+
+    function loadTenant(tid) {
+      tenantId = tid;
+      localStorage.setItem(TENANT_KEY, tenantId);
+      Object.values(pollHandles).forEach(clearInterval);
+      for (const key in pollHandles) delete pollHandles[key];
+      renderDocuments();
+      for (const doc of loadDocuments(tenantId)) {
+        if (doc.status === 'PENDING' || doc.status === 'PROCESSING') pollDocumentStatus(doc.documentId);
+      }
+    }
+
+    newTenantBtn.addEventListener('click', () => {
+      const fresh = crypto.randomUUID();
+      tenantIdInput.value = fresh;
+      loadTenant(fresh);
+    });
+
+    tenantIdInput.addEventListener('change', () => {
+      const value = tenantIdInput.value.trim();
+      if (value) loadTenant(value);
+    });
+
+    // ---------- upload ----------
+
+    fileInput.addEventListener('change', () => {
+      selectedFile = fileInput.files[0] || null;
+      ingestBtn.disabled = !selectedFile;
+      uploadLabel.textContent = selectedFile ? selectedFile.name : 'Choose a .txt file';
+      uploadLabel.classList.toggle('has-file', !!selectedFile);
+    });
+
+    ingestBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      hideError();
+      ingestBtn.disabled = true;
+      ingestBtn.textContent = 'Ingesting…';
+      try {
+        const { documentId, status } = await ingestDocument(selectedFile);
+        const docs = loadDocuments(tenantId);
+        const existing = docs.find(d => d.documentId === documentId);
+        if (existing) existing.status = status;
+        else docs.unshift({ documentId, filename: selectedFile.name, status });
+        saveDocuments(tenantId, docs);
+        renderDocuments();
+        if (status === 'PENDING') pollDocumentStatus(documentId);
+
+        fileInput.value = '';
+        selectedFile = null;
+        uploadLabel.textContent = 'Choose a .txt file';
+        uploadLabel.classList.remove('has-file');
+      } catch (err) {
+        showError(`Couldn't ingest that file — check the server is running and the tenant ID is set. (${err.message})`);
+      } finally {
+        ingestBtn.disabled = !selectedFile;
+        ingestBtn.textContent = 'Ingest';
+      }
+    });
+
+    // ---------- ask ----------
+
+    askForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = questionInput.value.trim();
+      if (!question) return;
+      hideError();
+      askBtn.disabled = true;
+      citationsList.innerHTML = '';
+
+      if (streamToggle.checked) {
+        answerArea.textContent = '';
+        let accumulated = '';
+        await streamQuery(question, {
+          onCitations: renderCitations,
+          onDelta: (text) => {
+            accumulated += text;
+            renderAnswerText(accumulated);
+          },
+          onDone: () => { askBtn.disabled = false; },
+          onError: (err) => {
+            showError(`Couldn't reach the API — check that the server is running. (${err.message})`);
+            askBtn.disabled = false;
+          }
+        });
+      } else {
+        answerArea.innerHTML = '<p class="empty-state">Thinking…</p>';
+        try {
+          const { answer, citations } = await askQuestion(question);
+          renderAnswerText(answer);
+          renderCitations(citations);
+        } catch (err) {
+          showError(`Couldn't reach the API — check that the server is running. (${err.message})`);
+          answerArea.innerHTML = '<p class="empty-state">Ask a question once you\'ve ingested a document.</p>';
+        } finally {
+          askBtn.disabled = false;
+        }
+      }
+    });
+
+    // ---------- init ----------
+
+    renderDocuments();
+    for (const doc of loadDocuments(tenantId)) {
+      if (doc.status === 'PENDING' || doc.status === 'PROCESSING') pollDocumentStatus(doc.documentId);
+    }
+  </script>
+</body>
+</html>
