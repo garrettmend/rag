@@ -63,15 +63,27 @@ variable "desired_count" {
 }
 
 variable "task_cpu" {
-  description = "Fargate task CPU units."
+  description = "Fargate task CPU units. 256 is the cheapest size; Spring Boot starts slower but runs fine for a demo."
   type        = number
-  default     = 512
+  default     = 256
 }
 
 variable "task_memory" {
   description = "Fargate task memory in MiB."
   type        = number
   default     = 1024
+}
+
+variable "duckdns_domain" {
+  description = "DuckDNS subdomain (without .duckdns.org) that each new task points at its public IP."
+  type        = string
+  default     = "garrett-rag"
+}
+
+variable "duckdns_token_parameter_name" {
+  description = "SSM SecureString parameter holding the DuckDNS token. Create it outside Terraform so the token stays out of state."
+  type        = string
+  default     = "/rag-backend/duckdns-token"
 }
 
 variable "container_image_tag" {

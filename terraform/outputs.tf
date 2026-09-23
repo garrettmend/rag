@@ -1,6 +1,6 @@
-output "app_urls" {
-  description = "Stable public URLs (one per NLB Elastic IP) for the RAG API."
-  value       = [for eip in aws_eip.nlb : format("http://%s/", eip.public_ip)]
+output "app_url" {
+  description = "Stable URL; DuckDNS is repointed at each new task's public IP."
+  value       = format("http://%s.duckdns.org:%d/", var.duckdns_domain, var.container_port)
 }
 
 output "app_ecr_repository_url" {

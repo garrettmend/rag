@@ -1,5 +1,8 @@
 FROM postgres:16-alpine
 
+# curl is used by the task's dns-update container, which reuses this image.
+RUN apk add --no-cache curl
+
 WORKDIR /migrations
 
 COPY infra/migrate.sh /usr/local/bin/rag-migrate

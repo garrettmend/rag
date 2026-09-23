@@ -27,15 +27,23 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = ["secretsmanager:GetSecretValue"]
-      Resource = [
-        aws_secretsmanager_secret.app_db.arn,
-        aws_secretsmanager_secret.worker_db.arn,
-        aws_db_instance.main.master_user_secret[0].secret_arn,
-      ]
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["secretsmanager:GetSecretValue"]
+        Resource = [
+          aws_secretsmanager_secret.app_db.arn,
+          aws_secretsmanager_secret.worker_db.arn,
+          aws_db_instance.main.master_user_secret[0].secret_arn,
+        ]
+      },
+      {
+        # SecureString under the AWS-managed aws/ssm key, so no kms:Decrypt grant is needed.
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameters"]
+        Resource = local.duckdns_token_parameter_arn
+      },
+    ]
   })
 }
 

@@ -35,6 +35,20 @@ resource "aws_ecs_cluster" "main" {
   tags = local.resource_tags
 }
 
+resource "aws_ecs_cluster_capacity_providers" "main" {
+  cluster_name       = aws_ecs_cluster.main.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+}
+
+data "aws_caller_identity" "current" {}
+
+locals {
+  # Built from the name rather than read via a data source so the token value
+  # never lands in Terraform state.
+  duckdns_token_parameter_arn = format("arn:aws:ssm:%s:%s:parameter%s",
+  var.aws_region, data.aws_caller_identity.current.account_id, var.duckdns_token_parameter_name)
+}
+
 resource "aws_ecs_task_definition" "app" {
   family                   = format("%s-task", var.project_name)
   requires_compatibilities = ["FARGATE"]
@@ -75,6 +89,44 @@ resource "aws_ecs_task_definition" "app" {
           "awslogs-group"         = aws_cloudwatch_log_group.app.name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "migrate"
+        }
+      }
+    },
+    {
+      # Points the DuckDNS hostname at this task's public IP once the app is
+      # serving, so the URL survives redeploys and Spot replacements without a
+      # load balancer. DuckDNS takes the IP from the request's source address.
+      name       = "dns-update"
+      image      = format("%s:%s", aws_ecr_repository.migrations.repository_url, var.container_image_tag)
+      essential  = false
+      entryPoint = ["sh", "-c"]
+      command = [format(<<-EOT
+        for i in $(seq 1 100); do
+          curl -fs -o /dev/null http://localhost:%d/ && break
+          sleep 3
+        done
+        curl -fsS "https://www.duckdns.org/update?domains=$DUCKDNS_DOMAIN&token=$DUCKDNS_TOKEN&ip="
+      EOT
+      , var.container_port)]
+
+      dependsOn = [
+        { containerName = "database-migrate", condition = "SUCCESS" },
+      ]
+
+      environment = [
+        { name = "DUCKDNS_DOMAIN", value = var.duckdns_domain },
+      ]
+
+      secrets = [
+        { name = "DUCKDNS_TOKEN", valueFrom = local.duckdns_token_parameter_arn },
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "dns"
         }
       }
     },
@@ -126,20 +178,19 @@ resource "aws_ecs_service" "app" {
   cluster          = aws_ecs_cluster.main.id
   task_definition  = aws_ecs_task_definition.app.arn
   desired_count    = var.desired_count
-  launch_type      = "FARGATE"
   platform_version = "1.4.0"
 
-  # Covers the migration sidecar plus ~35s Spring Boot startup.
-  health_check_grace_period_seconds = 120
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.app.arn
-    container_name   = "app"
-    container_port   = var.container_port
+  # Fargate Spot is ~70% cheaper; AWS may reclaim the task with two minutes'
+  # notice and ECS starts a replacement (which gets a new public IP).
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 1
   }
 
-  # The public IP is still needed for outbound access (ECR, Bedrock, SQS) since
-  # there is no NAT gateway; inbound is limited to the NLB security group.
+  force_new_deployment = true
+
+  depends_on = [aws_ecs_cluster_capacity_providers.main]
+
   network_configuration {
     subnets          = aws_subnet.public[*].id
     security_groups  = [aws_security_group.app.id]

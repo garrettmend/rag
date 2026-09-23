@@ -65,11 +65,11 @@ resource "aws_security_group" "app" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Spring Boot API via the load balancer"
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.nlb.id]
+    description = "Spring Boot API"
+    from_port   = var.container_port
+    to_port     = var.container_port
+    protocol    = "tcp"
+    cidr_blocks = var.app_ingress_cidr_blocks
   }
 
   egress {
