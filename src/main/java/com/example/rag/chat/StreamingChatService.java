@@ -2,6 +2,7 @@ package com.example.rag.chat;
 
 import com.example.rag.storage.ChunkResult;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import software.amazon.awssdk.regions.Region;
@@ -10,6 +11,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class StreamingChatService {
@@ -71,7 +73,11 @@ public class StreamingChatService {
                             try {
                                 // We instantly push those new characters down the SseEmitter 
                                 // to the user's browser, creating the "typing" effect.
-                                emitter.send(delta.delta().text());
+                                // JSON-wrapped so leading/trailing spaces and newlines in
+                                // the delta survive SSE framing, which strips them.
+                                emitter.send(SseEmitter.event()
+                                        .name("delta")
+                                        .data(Map.of("text", delta.delta().text()), MediaType.APPLICATION_JSON));
                             } catch (IOException e) {
                                 // If the user closed their browser or lost internet, 
                                 // we gracefully close the connection.

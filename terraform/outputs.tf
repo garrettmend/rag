@@ -1,3 +1,8 @@
+output "app_urls" {
+  description = "Stable public URLs (one per NLB Elastic IP) for the RAG API."
+  value       = [for eip in aws_eip.nlb : format("http://%s/", eip.public_ip)]
+}
+
 output "app_ecr_repository_url" {
   description = "Push the Spring Boot application image to this repository."
   value       = aws_ecr_repository.app.repository_url

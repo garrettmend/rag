@@ -20,8 +20,10 @@ BEGIN
 END
 $$;
 
-ALTER ROLE rag_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD :'app_db_password';
-ALTER ROLE rag_worker WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD :'worker_db_password';
+-- SUPERUSER is omitted here: RDS's master user is not a true superuser, and
+-- PostgreSQL rejects any ALTER ROLE that mentions that attribute, even NOSUPERUSER.
+ALTER ROLE rag_app WITH LOGIN NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD :'app_db_password';
+ALTER ROLE rag_worker WITH LOGIN NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD :'worker_db_password';
 
 CREATE TABLE IF NOT EXISTS documents (
   id         uuid PRIMARY KEY,
@@ -63,7 +65,9 @@ GRANT SELECT, INSERT ON documents TO rag_app;
 GRANT SELECT ON chunks TO rag_app;
 
 GRANT SELECT, UPDATE ON documents TO rag_worker;
-GRANT INSERT ON chunks TO rag_worker;
+-- SELECT is required because the worker's INSERT ... ON CONFLICT (document_id,
+-- chunk_hash) reads the conflict-target columns.
+GRANT SELECT, INSERT ON chunks TO rag_worker;
 
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents FORCE ROW LEVEL SECURITY;

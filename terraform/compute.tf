@@ -129,6 +129,17 @@ resource "aws_ecs_service" "app" {
   launch_type      = "FARGATE"
   platform_version = "1.4.0"
 
+  # Covers the migration sidecar plus ~35s Spring Boot startup.
+  health_check_grace_period_seconds = 120
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app.arn
+    container_name   = "app"
+    container_port   = var.container_port
+  }
+
+  # The public IP is still needed for outbound access (ECR, Bedrock, SQS) since
+  # there is no NAT gateway; inbound is limited to the NLB security group.
   network_configuration {
     subnets          = aws_subnet.public[*].id
     security_groups  = [aws_security_group.app.id]

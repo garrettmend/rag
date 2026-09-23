@@ -37,3 +37,7 @@ build/
 *.tfstate
 *.tfstate.*
 crash.log
+
+# Saved plans embed sensitive values (generated DB passwords)
+terraform/tfplan
+*.tfplan

@@ -1,16 +1,16 @@
 #!/bin/sh
 set -eu
 
-: "\${DB_HOST:?DB_HOST is required}"
-: "\${DB_PORT:?DB_PORT is required}"
-: "\${DB_NAME:?DB_NAME is required}"
-: "\${DB_USERNAME:?DB_USERNAME is required}"
-: "\${DB_PASSWORD:?DB_PASSWORD is required}"
-: "\${APP_DB_PASSWORD:?APP_DB_PASSWORD is required}"
-: "\${WORKER_DB_PASSWORD:?WORKER_DB_PASSWORD is required}"
+: "${DB_HOST:?DB_HOST is required}"
+: "${DB_PORT:?DB_PORT is required}"
+: "${DB_NAME:?DB_NAME is required}"
+: "${DB_USERNAME:?DB_USERNAME is required}"
+: "${DB_PASSWORD:?DB_PASSWORD is required}"
+: "${APP_DB_PASSWORD:?APP_DB_PASSWORD is required}"
+: "${WORKER_DB_PASSWORD:?WORKER_DB_PASSWORD is required}"
 
 export PGPASSWORD="$DB_PASSWORD"
-export PGSSLMODE="\${DB_SSLMODE:-require}"
+export PGSSLMODE="${DB_SSLMODE:-require}"
 
 attempt=0
 until pg_isready --host "$DB_HOST" --port "$DB_PORT" --username "$DB_USERNAME" --dbname "$DB_NAME" --quiet; do

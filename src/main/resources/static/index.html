@@ -368,8 +368,19 @@
     const citationsList = document.getElementById('citationsList');
     const errorBanner = document.getElementById('errorBanner');
 
+    // crypto.randomUUID only exists in secure contexts (HTTPS/localhost); the
+    // demo is served over plain HTTP, so fall back to getRandomValues.
+    function newUuid() {
+      if (crypto.randomUUID) return crypto.randomUUID();
+      const b = crypto.getRandomValues(new Uint8Array(16));
+      b[6] = (b[6] & 0x0f) | 0x40;
+      b[8] = (b[8] & 0x3f) | 0x80;
+      const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+      return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+    }
+
     const TENANT_KEY = 'stacks:tenantId';
-    let tenantId = localStorage.getItem(TENANT_KEY) || crypto.randomUUID();
+    let tenantId = localStorage.getItem(TENANT_KEY) || newUuid();
     localStorage.setItem(TENANT_KEY, tenantId);
     tenantIdInput.value = tenantId;
 
@@ -445,7 +456,8 @@
       const dataLines = [];
       for (const line of raw.split('\n')) {
         if (line.startsWith('event:')) event = line.slice(6).trim();
-        else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+        // Per the SSE spec, strip only a single leading space — trimming would eat real whitespace.
+        else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
       }
       return { event, data: dataLines.join('\n') };
     }
@@ -473,7 +485,7 @@
             buffer = buffer.slice(boundary + 2);
             const { event, data } = parseSseEvent(rawEvent);
             if (event === 'citations' && data) onCitations(JSON.parse(data));
-            else if (data) onDelta(data);
+            else if (event === 'delta' && data) onDelta(JSON.parse(data).text);
           }
         }
         onDone();
@@ -571,7 +583,7 @@
     }
 
     newTenantBtn.addEventListener('click', () => {
-      const fresh = crypto.randomUUID();
+      const fresh = newUuid();
       tenantIdInput.value = fresh;
       loadTenant(fresh);
     });

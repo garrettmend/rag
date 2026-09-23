@@ -3,6 +3,8 @@ package com.example.rag.ingestion;
 import com.example.rag.embedding.EmbeddingService;
 import com.example.rag.storage.WorkerVectorStoreRepository;
 import com.example.rag.util.Hashing;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,8 @@ import java.util.UUID;
  */
 @Component
 public class IngestionWorker {
+
+    private static final Logger log = LoggerFactory.getLogger(IngestionWorker.class);
 
     private final SqsClient sqsClient;
     private final String queueUrl;
@@ -79,6 +83,7 @@ public class IngestionWorker {
             // Message is left on the queue on purpose. It reappears after the
             // visibility timeout and gets retried — which is safe only because
             // insertChunkIfAbsent is idempotent.
+            log.error("Failed to ingest document {}", documentId, e);
             repository.updateDocumentStatus(documentId, "FAILED");
         }
     }
