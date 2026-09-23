@@ -27,10 +27,24 @@ It is the value used by the repository's application.yml and is required for
 on-demand Bedrock Runtime/Converse calls; do not replace it with the pasted
 us.anthropic.claude-sonnet-5 value.
 
-This is intentionally a low-cost demo topology: tasks receive a public IP,
-there is no NAT gateway or load balancer, and the database is private behind
-the task security group. Before applying, restrict the public API to your own
-IP in terraform.tfvars:
+This is intentionally a low-cost demo topology (~$22/month): the task runs on
+Fargate Spot at 0.25 vCPU and receives a public IP, there is no NAT gateway or
+load balancer, and the database is private behind the task security group.
+Instead of a load balancer, a short-lived dns-update container in each task
+points a free DuckDNS hostname at that task's public IP, so the URL stays the
+same across redeploys and Spot replacements.
+
+Create a DuckDNS subdomain at https://www.duckdns.org and store its token in
+SSM Parameter Store. It is created outside Terraform so the token never lands
+in Terraform state:
+
+~~~powershell
+aws ssm put-parameter --name /rag-backend/duckdns-token --type SecureString --tier Standard --value <duckdns-token>
+~~~
+
+Set duckdns_domain in terraform.tfvars if your subdomain isn't garrett-rag.
+
+Optionally restrict the public API to your own IP in terraform.tfvars:
 
 ~~~hcl
 app_ingress_cidr_blocks = ["203.0.113.45/32"]
@@ -60,7 +74,8 @@ $migrationRepo = terraform output -raw migrations_ecr_repository_url
 $registry = $appRepo.Split('/')[0]
 $region = terraform output -raw aws_region
 
-aws ecr get-login-password --region $region | docker login --username AWS --password-stdin $registry
+# Windows PowerShell 5.1 corrupts piped passwords, so pass the token directly.
+docker login --username AWS --password (aws ecr get-login-password --region $region) $registry
 docker build --platform linux/amd64 --file ..\Dockerfile --tag "$($appRepo):latest" ..
 docker push "$($appRepo):latest"
 docker build --platform linux/amd64 --file ..\Dockerfile.migrate --tag "$($migrationRepo):latest" ..
@@ -85,22 +100,26 @@ $logGroup = terraform output -raw cloudwatch_log_group_name
 aws logs tail $logGroup --follow
 ~~~
 
-## Reach the demo task
-
-There is deliberately no load balancer, so the Fargate public IP is ephemeral.
-After a deployment, retrieve it as follows:
+## Reach the demo
 
 ~~~powershell
-$taskArn = aws ecs list-tasks --cluster $cluster --service-name $service --query 'taskArns[0]' --output text
-$eniId = aws ecs describe-tasks --cluster $cluster --tasks $taskArn --query "tasks[0].attachments[0].details[?name=='networkInterfaceId'].value | [0]" --output text
-$publicIp = aws ec2 describe-network-interfaces --network-interface-ids $eniId --query 'NetworkInterfaces[0].Association.PublicIp' --output text
-
-"http://$($publicIp):8080/"
+terraform output -raw app_url   # http://garrett-rag.duckdns.org:8080/
 ~~~
 
-Open the resulting URL, upload a text file, and use the generated tenant UUID
-in the included UI. Direct public-IP access is HTTP-only and changes each time
-ECS replaces the task.
+Open the URL, upload a text file, and ask questions about it in the included
+UI. Access is HTTP-only.
+
+Each new task updates DuckDNS once the app responds on localhost, so expect
+1-3 minutes of downtime per redeploy or Spot replacement, plus up to a minute
+of DNS caching. If the hostname stops resolving to the running task, check the
+dns-update logs:
+
+~~~powershell
+aws logs tail $logGroup --since 30m --log-stream-name-prefix dns
+~~~
+
+A response of OK means DuckDNS accepted the update; KO usually means the token
+in /rag-backend/duckdns-token is wrong.
 
 ## Tear down
 
@@ -109,9 +128,10 @@ from ECR when terraform destroy runs:
 
 ~~~powershell
 terraform destroy
+aws ssm delete-parameter --name /rag-backend/duckdns-token
 ~~~
 
-For a non-demo deployment, use private subnets with NAT or VPC endpoints, an
-ALB with TLS and health checks, a protected remote state backend, RDS backups
+For a non-demo deployment, use on-demand Fargate in private subnets with NAT
+or VPC endpoints, an ALB with TLS and health checks in place of DuckDNS, a protected remote state backend, RDS backups
 and deletion protection, a dedicated migration pipeline, and a stable
 application endpoint.
