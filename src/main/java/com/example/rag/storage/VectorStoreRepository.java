@@ -10,19 +10,31 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * App-facing storage access, using the rag_app (RLS-scoped) connection. Every
- * method sets the row-level-security tenant variable before it queries.
+ * App-facing data access for documents and chunks over the tenant-restricted rag_app connection.
+ * Every method runs in a transaction and first sets the row-level-security tenant variable, so queries only see that tenant's rows.
+ * It supports upload deduplication, status lookups, and the vector and full-text searches behind hybrid retrieval.
  */
 @Repository
 public class VectorStoreRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * Creates the repository on the app (RLS-scoped) connection.
+     *
+     * @param jdbcTemplate the app JdbcTemplate
+     */
     public VectorStoreRepository(@Qualifier("appJdbcTemplate") JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Lets ingestion skip re-embedding a file this tenant has already processed. */
+    /**
+     * Looks up a document by content hash so ingestion can skip a file this tenant has already processed.
+     *
+     * @param tenantId the tenant
+     * @param fileHash the SHA-256 hash of the file text
+     * @return the existing document's ID, if any
+     */
     @Transactional
     public Optional<UUID> findDocumentByHash(UUID tenantId, String fileHash) {
         applyTenant(tenantId);
@@ -34,8 +46,13 @@ public class VectorStoreRepository {
     }
 
     /**
-     * Creates a UUID, saves a document, and returns the new document ID so
-     * chunks can refer to it.
+     * Saves a new document under a freshly generated ID.
+     *
+     * @param tenantId the owning tenant
+     * @param filename the original file name
+     * @param fileHash the SHA-256 hash of the text
+     * @param rawText  the full document text
+     * @return the new document ID, for chunks to reference
      */
     @Transactional
     public UUID insertDocument(UUID tenantId, String filename, String fileHash, String rawText) {
@@ -48,6 +65,13 @@ public class VectorStoreRepository {
         return id;
     }
 
+    /**
+     * Returns a document's ingestion status.
+     *
+     * @param tenantId   the tenant
+     * @param documentId the document
+     * @return the status, such as PENDING, PROCESSING, READY, or FAILED
+     */
     @Transactional
     public String getStatus(UUID tenantId, UUID documentId) {
         applyTenant(tenantId);
@@ -57,13 +81,16 @@ public class VectorStoreRepository {
     }
 
     /**
-     * Finds the closest stored chunks to a query embedding using pgvector cosine
-     * distance and returns at most topK results ordered from closest to farthest.
+     * Finds the chunks closest to a query embedding by pgvector cosine distance ({@code <=>}).
+     *
+     * @param tenantId       the tenant
+     * @param queryEmbedding the embedded query
+     * @param topK           the maximum number of results
+     * @return up to topK chunks, closest (lowest distance) first
      */
     @Transactional
     public List<ChunkResult> vectorSearch(UUID tenantId, float[] queryEmbedding, int topK) {
         applyTenant(tenantId);
-        // The pgvector <=> operator returns cosine distance; lower values are more similar.
         return jdbcTemplate.query(
                 """
                 SELECT id, document_id, content, embedding <=> ?::vector AS score
@@ -81,7 +108,14 @@ public class VectorStoreRepository {
         );
     }
 
-    /** Keyword search over the generated content_tsv column, for hybrid search alongside vectorSearch. */
+    /**
+     * Runs a keyword search over the generated content_tsv column, for hybrid search alongside {@link #vectorSearch}.
+     *
+     * @param tenantId the tenant
+     * @param query    the raw query text
+     * @param topK     the maximum number of results
+     * @return up to topK matching chunks, highest ts_rank first
+     */
     @Transactional
     public List<ChunkResult> fullTextSearch(UUID tenantId, String query, int topK) {
         applyTenant(tenantId);
@@ -103,7 +137,14 @@ public class VectorStoreRepository {
         );
     }
 
-    // The `true` (is_local) argument clears this on commit/rollback, so it never survives to the connection's next borrower.
+    /**
+     * Sets the RLS tenant variable {@code app.current_tenant_id} for the current transaction.
+     * <p>
+     * The {@code true} (is_local) argument clears it on commit or rollback, so it never survives
+     * to the pooled connection's next borrower.
+     *
+     * @param tenantId the tenant to scope queries to
+     */
     private void applyTenant(UUID tenantId) {
         jdbcTemplate.queryForObject(
                 "SELECT set_config('app.current_tenant_id', ?, true)",

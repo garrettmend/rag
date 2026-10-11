@@ -19,10 +19,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Long-polls the ingestion queue and processes each document: chunks it, embeds every
- * chunk, and moves its status PENDING -> PROCESSING -> READY (or FAILED on error).
- * On failure the message isn't deleted, so SQS redelivers it after the visibility
- * timeout; retries are safe only because chunk insertion is idempotent.
+ * Background worker that long-polls the ingestion queue and processes each queued document.
+ * It chunks the document, embeds every chunk, and moves its status PENDING to PROCESSING to READY, or to FAILED on error.
+ * Failed messages are left on the queue for SQS to redeliver after the visibility timeout, which is safe because chunk insertion is idempotent.
  */
 @Component
 public class IngestionWorker {
@@ -35,6 +34,15 @@ public class IngestionWorker {
     private final ChunkingService chunkingService;
     private final EmbeddingService embeddingService;
 
+    /**
+     * Creates the worker with an SQS client for the given region.
+     *
+     * @param region           the AWS region
+     * @param queueUrl         the ingestion queue URL
+     * @param repository       cross-tenant storage for documents and chunks
+     * @param chunkingService  splits document text into chunks
+     * @param embeddingService embeds each chunk
+     */
     public IngestionWorker(@Value("${aws.region}") String region,
                             @Value("${aws.sqs.ingestion-queue-url}") String queueUrl,
                             WorkerVectorStoreRepository repository,
@@ -47,12 +55,16 @@ public class IngestionWorker {
         this.embeddingService = embeddingService;
     }
 
+    /**
+     * Long-polls for up to five messages (waiting up to 10 seconds) and processes each one.
+     * Runs again one second after the previous poll finishes.
+     */
     @Scheduled(fixedDelay = 1000)
     public void poll() {
-        ReceiveMessageResponse response = sqsClient.receiveMessage(ReceiveMessageRequest.builder()//api call
+        ReceiveMessageResponse response = sqsClient.receiveMessage(ReceiveMessageRequest.builder()
                 .queueUrl(queueUrl)
                 .maxNumberOfMessages(5)
-                .waitTimeSeconds(10) // long polling
+                .waitTimeSeconds(10)
                 .build());
 
         for (Message message : response.messages()) {
@@ -60,6 +72,15 @@ public class IngestionWorker {
         }
     }
 
+    /**
+     * Chunks, embeds, and stores one document, then deletes its message on success.
+     * <p>
+     * On failure the document is marked FAILED and the message is deliberately left on the queue,
+     * so it reappears after the visibility timeout and is retried; this is safe only because
+     * {@link WorkerVectorStoreRepository#insertChunkIfAbsent} is idempotent.
+     *
+     * @param message the SQS message whose body is the document ID
+     */
     private void processMessage(Message message) {
         UUID documentId = UUID.fromString(message.body());
         try {
@@ -80,9 +101,6 @@ public class IngestionWorker {
                     .receiptHandle(message.receiptHandle())
                     .build());
         } catch (Exception e) {
-            // Message is left on the queue on purpose. It reappears after the
-            // visibility timeout and gets retried — which is safe only because
-            // insertChunkIfAbsent is idempotent.
             log.error("Failed to ingest document {}", documentId, e);
             repository.updateDocumentStatus(documentId, "FAILED");
         }

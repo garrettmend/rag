@@ -1,0 +1,113 @@
+[
+  {
+    "id": "q1",
+    "question": "How is multi-tenant isolation enforced in the Multi-Tenant RAG Platform project?",
+    "expectedChunkContains": "Row-Level Security",
+    "expectedFacts": [
+      "Multi-tenant isolation is enforced via Postgres Row-Level Security with a tenant-scoped application role and a separate BYPASSRLS worker role."
+    ]
+  },
+  {
+    "id": "q2",
+    "question": "What performance metrics were achieved during k6 testing for the E-Commerce backend?",
+    "expectedChunkContains": "2,540 authenticated order requests",
+    "expectedFacts": [
+      "The 100-virtual-user, 30-second k6 test generated 2,540 authenticated order requests with 193 ms average latency, 352 ms p95 latency, and 0% transport-level failures."
+    ]
+  },
+  {
+    "id": "q3",
+    "question": "How is access control implemented in the B2B SaaS Entitlements Engine beyond basic RBAC?",
+    "expectedChunkContains": "Attribute-Based Access Control",
+    "expectedFacts": [
+      "It uses a custom Attribute-Based Access Control (ABAC) layer extending Spring Security's method-security SpEL engine, combining subscription tier and per-user JWT permissions."
+    ]
+  },
+  {
+    "id": "q4",
+    "question": "How are generated answers delivered to clients in the Multi-Tenant RAG Platform?",
+    "expectedChunkContains": "Server-Sent Events",
+    "expectedFacts": [
+      "Numbered, source-cited answers from Claude on AWS Bedrock are streamed over Server-Sent Events (SSE)."
+    ]
+  },
+  {
+    "id": "q5",
+    "question": "What mechanism ensures document ingestion is duplicate-safe in the RAG pipeline?",
+    "expectedChunkContains": "content-hash-keyed",
+    "expectedFacts": [
+      "The ingestion pipeline utilizes an asynchronous SQS worker with a content-hash-keyed INSERT ... ON CONFLICT query for idempotent processing."
+    ]
+  },
+  {
+    "id": "q6",
+    "question": "How does the usage-metering pipeline guarantee exactly-once delivery under high concurrency?",
+    "expectedChunkContains": "async outbox pattern",
+    "expectedFacts": [
+      "It combines atomic INSERT ... ON CONFLICT semantics with an async outbox pattern to publish billing events to AWS EventBridge."
+    ]
+  },
+  {
+    "id": "q7",
+    "question": "How is database schema migration handled during container deployment in the RAG platform?",
+    "expectedChunkContains": "schema-migration sidecar",
+    "expectedFacts": [
+      "An idempotent schema-migration sidecar container runs to completion before the main API container starts on each deploy."
+    ]
+  },
+  {
+    "id": "q8",
+    "question": "What role does trusted background processing use in the multi-tenant RAG architecture?",
+    "expectedChunkContains": "BYPASSRLS worker role",
+    "expectedFacts": [
+      "Cross-tenant background processing uses a separate BYPASSRLS worker role, while application requests use a tenant-scoped role bound by RLS."
+    ]
+  },
+  {
+    "id": "q9",
+    "question": "Which streaming and caching tools are used in the event-driven e-commerce platform?",
+    "expectedChunkContains": "3 Kafka topics",
+    "expectedFacts": [
+      "Order processing is event-driven across 3 Kafka topics, accompanied by Redis product caching."
+    ]
+  },
+  {
+    "id": "q10",
+    "question": "What IaC deployment workflow was built for the Serverless REST API?",
+    "expectedChunkContains": "init -> plan -> apply",
+    "expectedFacts": [
+      "A reusable Terraform workflow (init -> plan -> apply) was constructed across a modular six-file configuration."
+    ]
+  },
+  {
+    "id": "q11",
+    "question": "Where did Garrett study computer science and what degree is expected?",
+    "expectedChunkContains": "Western Governors University",
+    "expectedFacts": [
+      "Garrett is pursuing a BS in Computer Science at Western Governors University (expected 2027) with transferred coursework from the University of Utah."
+    ]
+  },
+  {
+    "id": "q12",
+    "question": "What responsibilities did Garrett perform as an AI Prompt Engineer at Outlier.ai?",
+    "expectedChunkContains": "A/B testing",
+    "expectedFacts": [
+      "Authored coding prompts, evaluated dual-model outputs via A/B testing, and debugged AI-generated code snippets."
+    ]
+  },
+  {
+    "id": "q13",
+    "question": "What is the company policy for expensing travel and hotel accommodations?",
+    "expectOutOfScope": true
+  },
+  {
+    "id": "q14",
+    "question": "What experience does Garrett have deploying workloads on Google Cloud Platform (GCP) or Kubernetes?",
+    "expectOutOfScope": true
+  },
+  {
+    "id": "q15",
+    "question": "What is the employee match percentage for the company 401k retirement plan?",
+    "expectOutOfScope": true
+  }
+]

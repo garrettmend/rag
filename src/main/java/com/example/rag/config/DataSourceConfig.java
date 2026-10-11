@@ -11,23 +11,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import javax.sql.DataSource;
 
 /**
- * Configures multiple database connections for the application.
- * 
- * WHY WE NEED THIS:
- * Our PostgreSQL database enforces Row-Level Security (RLS). We need two distinct
- * database roles to interact with it safely:
- * 1. An "App" connection (restricted by tenant ID for user web requests).
- * 2. A "Worker" connection (bypasses RLS to process background jobs for all tenants).
+ * Configures the two PostgreSQL connections the application needs under row-level security.
+ * The primary "app" connection logs in as the tenant-restricted rag_app role and serves web requests.
+ * The "worker" connection logs in as the rag_worker role, whose RLS policy lets background jobs process every tenant.
  */
 @Configuration
 public class DataSourceConfig {
 
     /**
-     * Creates the primary database connection used for standard web requests.
-     * 
-     * @ConfigurationProperties tells Spring to read the URL, username, and password
-     * from the "app.datasource" block in application.yml (logging in as the 'rag_app' role).
-     * @Primary tells Spring to use this connection by default unless specified otherwise.
+     * Creates the primary, tenant-restricted data source from the {@code app.datasource} properties.
+     *
+     * @return the rag_app data source, used by default wherever no qualifier is given
      */
     @Bean
     @Primary
@@ -37,10 +31,9 @@ public class DataSourceConfig {
     }
 
     /**
-     * Creates the secondary database connection used for background processing.
-     * 
-     * Reads from the "worker.datasource" block in application.yml (logging in as
-     * the 'rag_worker' role, whose explicit RLS policy can process every tenant).
+     * Creates the background-processing data source from the {@code worker.datasource} properties.
+     *
+     * @return the rag_worker data source
      */
     @Bean
     @ConfigurationProperties("worker.datasource")
@@ -49,11 +42,10 @@ public class DataSourceConfig {
     }
 
     /**
-     * Creates the JdbcTemplate (the tool used to execute SQL queries) for the App.
-     * 
-     * @Qualifier("appDataSource") ensures it specifically uses the restricted app connection.
-     * @Primary ensures that if a Repository doesn't specify which template to use, 
-     * it safely defaults to this restricted one.
+     * Creates the default JdbcTemplate, bound to the restricted app connection so unqualified injections stay safe.
+     *
+     * @param ds the app data source
+     * @return a JdbcTemplate for tenant-scoped queries
      */
     @Bean
     @Primary
@@ -62,10 +54,10 @@ public class DataSourceConfig {
     }
 
     /**
-     * Creates the JdbcTemplate for background worker jobs.
-     * 
-     * Repositories that handle background processing will explicitly ask for this
-     * "workerJdbcTemplate" to bypass RLS and process documents across all tenants.
+     * Creates the JdbcTemplate that worker repositories request explicitly to process documents across tenants.
+     *
+     * @param ds the worker data source
+     * @return a JdbcTemplate for background ingestion queries
      */
     @Bean
     public JdbcTemplate workerJdbcTemplate(@Qualifier("workerDataSource") DataSource ds) {

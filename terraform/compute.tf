@@ -102,7 +102,7 @@ resource "aws_ecs_task_definition" "app" {
       entryPoint = ["sh", "-c"]
       command = [format(<<-EOT
         for i in $(seq 1 100); do
-          curl -fs -o /dev/null http://localhost:%d/ && break
+          curl -fs -o /dev/null http://127.0.0.1:%d/ && break
           sleep 3
         done
         curl -fsS "https://www.duckdns.org/update?domains=$DUCKDNS_DOMAIN&token=$DUCKDNS_TOKEN&ip="
@@ -131,6 +131,50 @@ resource "aws_ecs_task_definition" "app" {
       }
     },
     {
+      # The only publicly reachable container: terminates HTTPS with an
+      # automatically issued Let's Encrypt certificate for the DuckDNS hostname
+      # and proxies to the app over localhost.
+      # Waits for dns-update so the ACME HTTP challenge reaches this task, not
+      # the one being replaced.
+      name       = "https-proxy"
+      image      = var.caddy_image
+      essential  = true
+      entryPoint = ["sh", "-c"]
+      command = [<<-EOT
+        sleep 60
+        cat > /etc/caddy/Caddyfile <<'CADDY'
+        {$DOMAIN} {
+          header Strict-Transport-Security "max-age=31536000"
+          reverse_proxy 127.0.0.1:${var.container_port}
+        }
+        CADDY
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+      EOT
+      ]
+
+      dependsOn = [
+        { containerName = "dns-update", condition = "COMPLETE" },
+      ]
+
+      portMappings = [
+        { containerPort = 80, protocol = "tcp" },
+        { containerPort = 443, protocol = "tcp" },
+      ]
+
+      environment = [
+        { name = "DOMAIN", value = format("%s.duckdns.org", var.duckdns_domain) },
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "proxy"
+        }
+      }
+    },
+    {
       name      = "app"
       image     = format("%s:%s", aws_ecr_repository.app.repository_url, var.container_image_tag)
       essential = true
@@ -144,6 +188,8 @@ resource "aws_ecs_task_definition" "app" {
       ]
 
       environment = [
+        # Only the https-proxy sidecar (same network namespace) may reach the app.
+        { name = "SERVER_ADDRESS", value = "127.0.0.1" },
         { name = "APP_DATASOURCE_JDBC_URL", value = format("jdbc:postgresql://%s:%d/%s?sslmode=require", aws_db_instance.main.address, aws_db_instance.main.port, var.db_name) },
         { name = "WORKER_DATASOURCE_JDBC_URL", value = format("jdbc:postgresql://%s:%d/%s?sslmode=require", aws_db_instance.main.address, aws_db_instance.main.port, var.db_name) },
         { name = "AWS_REGION", value = var.aws_region },

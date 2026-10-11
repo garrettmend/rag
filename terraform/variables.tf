@@ -51,7 +51,7 @@ variable "container_port" {
 }
 
 variable "app_ingress_cidr_blocks" {
-  description = "CIDRs allowed to reach the task's public IP. Restrict this to your own public IP before sharing the deployment."
+  description = "CIDRs allowed to reach the HTTPS proxy on ports 80 and 443. Let's Encrypt must reach port 80 to issue certificates, so keep 0.0.0.0/0 unless you supply certificates another way."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
@@ -84,6 +84,12 @@ variable "duckdns_token_parameter_name" {
   description = "SSM SecureString parameter holding the DuckDNS token. Create it outside Terraform so the token stays out of state."
   type        = string
   default     = "/rag-backend/duckdns-token"
+}
+
+variable "caddy_image" {
+  description = "Caddy image for the HTTPS proxy sidecar."
+  type        = string
+  default     = "public.ecr.aws/docker/library/caddy:2-alpine"
 }
 
 variable "container_image_tag" {

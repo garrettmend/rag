@@ -13,11 +13,12 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 import java.util.ArrayList;
 import java.util.List;
 
-@Service //spring creates automatically
 /**
- * Generates normalized 1024-dimensional text embeddings with Amazon Bedrock
- * and the configured Titan embedding model.
+ * Generates text embeddings with the configured Amazon Bedrock Titan embedding model.
+ * Every request asks for 1024-dimensional, normalized vectors so they match the pgvector column and cosine search.
+ * The returned JSON embedding is converted into a Java float array for storage and querying.
  */
+@Service
 public class EmbeddingService {
 
     private final BedrockRuntimeClient client;
@@ -26,13 +27,24 @@ public class EmbeddingService {
     @Value("${aws.bedrock.embedding-model-id}")
     private String modelId;
 
+    /**
+     * Creates the service with a synchronous Bedrock client.
+     *
+     * @param region the AWS region hosting the embedding model
+     */
     public EmbeddingService(@Value("${aws.region}") String region) {
         this.client = BedrockRuntimeClient.builder()
                 .region(Region.of(region))
                 .build();
     }
 
-    // Sends the text to Bedrock and converts the returned embedding JSON to a float array.
+    /**
+     * Embeds the given text as a normalized 1024-dimensional vector.
+     *
+     * @param text the text to embed
+     * @return the embedding values
+     * @throws RuntimeException if the Bedrock call or response parsing fails
+     */
     public float[] embed(String text) {
         try {
             var body = mapper.createObjectNode();
@@ -59,11 +71,3 @@ public class EmbeddingService {
         }
     }
 }
-//Spring creates it automatically because it has @Service.
-//Reads the AWS region and embedding model ID from application.yml.
-//Builds an AWS Bedrock Runtime client.
-//Sends the text to Titan Embeddings V2 with:
-//1024 dimensions
-//normalized output
-//Reads the returned JSON embedding.
-//Converts it into a Java float[].

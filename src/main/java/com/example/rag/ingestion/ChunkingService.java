@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Splits plain text into bounded chunks before embedding and storage.
+ * Splits a document's plain text into chunks before embedding and storage.
+ * Chunks are fixed-size, non-overlapping windows of at most 1,000 characters.
+ * Each chunk is later embedded and stored independently for retrieval.
  */
 @Service
 public class ChunkingService {
@@ -15,6 +17,9 @@ public class ChunkingService {
 
     /**
      * Splits text into non-overlapping chunks of at most 1,000 characters.
+     *
+     * @param text the document text
+     * @return the chunks in document order
      */
     public List<String> chunk(String text) {
         List<String> chunks = new ArrayList<>();

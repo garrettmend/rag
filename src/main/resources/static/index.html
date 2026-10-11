@@ -602,6 +602,22 @@
       uploadLabel.classList.toggle('has-file', !!selectedFile);
     });
 
+    // Preselect a bundled sample so first-time visitors can ingest with one click.
+    const DEFAULT_FILE = { url: '/samples/lotr-chpt-1.txt', name: 'lotr-chpt-1.txt' };
+    async function selectDefaultFile() {
+      try {
+        const res = await fetch(DEFAULT_FILE.url);
+        if (!res.ok || selectedFile) return;
+        selectedFile = new File([await res.blob()], DEFAULT_FILE.name, { type: 'text/plain' });
+        ingestBtn.disabled = false;
+        uploadLabel.textContent = selectedFile.name;
+        uploadLabel.classList.add('has-file');
+      } catch (err) {
+        // No sample available; the visitor can still choose a file.
+      }
+    }
+    selectDefaultFile();
+
     ingestBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
       hideError();

@@ -61,13 +61,21 @@ resource "aws_route_table_association" "public" {
 
 resource "aws_security_group" "app" {
   name        = format("%s-app-sg", var.project_name)
-  description = "Inbound RAG API traffic and all outbound traffic"
+  description = "Inbound HTTP(S) to the proxy and all outbound traffic"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "Spring Boot API"
-    from_port   = var.container_port
-    to_port     = var.container_port
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.app_ingress_cidr_blocks
+  }
+
+  ingress {
+    description = "HTTP redirect to HTTPS and Let's Encrypt HTTP challenge"
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = var.app_ingress_cidr_blocks
   }

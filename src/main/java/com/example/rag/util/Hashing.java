@@ -6,34 +6,25 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * Utility class for computing cryptographic hashes of text content.
- * 
- * WHY WE NEED THIS:
- * Powers document and chunk deduplication across the RAG pipeline by creating
- * deterministic content fingerprints (file_hash and chunk_hash) before storing
- * or generating embeddings.
+ * Computes SHA-256 fingerprints of text content.
+ * The hashes back deduplication across the pipeline, as the file_hash on documents and the chunk_hash on chunks.
+ * Identical text always produces the same hash, so repeat uploads and retried chunk inserts can be detected.
  */
 public class Hashing {
 
     /**
-     * Generates a 64-character lowercase SHA-256 hexadecimal string for the provided text.
-     * 
-     * @param text The raw string to hash (e.g., file content or a text chunk)
-     * @return A unique 64-character hex string representing the content
+     * Hashes text with SHA-256 over its UTF-8 bytes.
+     *
+     * @param text the text to hash
+     * @return the 64-character lowercase hex digest
+     * @throws RuntimeException if SHA-256 is unavailable, which a standard JVM guarantees never happens
      */
     public static String sha256(String text) {
         try {
-            // 1. Get an instance of Java's standard SHA-256 message digest algorithm.
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            
-            // 2. Convert text to UTF-8 bytes, compute the binary hash digest, 
-            //    and convert the raw byte array into a clean hex string.
             byte[] hashBytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hashBytes);
-
         } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is guaranteed to exist in every standard Java Virtual Machine (JVM),
-            // so this exception will never trigger under normal operating conditions.
             throw new RuntimeException("SHA-256 algorithm not available in current JVM", e);
         }
     }

@@ -1,6 +1,6 @@
 output "app_url" {
   description = "Stable URL; DuckDNS is repointed at each new task's public IP."
-  value       = format("http://%s.duckdns.org:%d/", var.duckdns_domain, var.container_port)
+  value       = format("https://%s.duckdns.org/", var.duckdns_domain)
 }
 
 output "app_ecr_repository_url" {

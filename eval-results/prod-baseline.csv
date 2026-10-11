@@ -1,0 +1,16 @@
+id,retrievalHit,judgeScore,latencyMs
+q1,true,5,2442
+q2,false,5,1790
+q3,true,5,1744
+q4,true,5,1232
+q5,true,5,1934
+q6,false,3,2512
+q7,true,5,1575
+q8,false,4,1632
+q9,true,5,1386
+q10,false,4,1751
+q11,true,5,1583
+q12,true,5,2355
+q13,true,5,1224
+q14,true,5,1670
+q15,true,5,964

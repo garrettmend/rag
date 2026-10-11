@@ -9,8 +9,9 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import java.util.UUID;
 
 /**
- * Service component responsible for dispatching document identifiers to an AWS SQS queue.
- * This facilitates asynchronous downstream processing for the RAG ingestion pipeline.
+ * Publishes newly uploaded document IDs to the ingestion SQS queue.
+ * Queuing decouples slow chunking and embedding from the upload request.
+ * The ingestion worker consumes these messages and processes each document in the background.
  */
 @Component
 public class IngestionQueue {
@@ -19,25 +20,23 @@ public class IngestionQueue {
     private final String queueUrl;
 
     /**
-     * Constructs the IngestionQueue and initializes the AWS SQS client.
-     * 
-     * @param region   The AWS deployment region (e.g., "us-east-1") injected from application properties.
-     * @param queueUrl The destination SQS queue URL injected from application properties.
+     * Creates the queue publisher with an SQS client for the given region.
+     *
+     * @param region   the AWS region, such as "us-east-1"
+     * @param queueUrl the ingestion queue URL
      */
     public IngestionQueue(@Value("${aws.region}") String region,
                            @Value("${aws.sqs.ingestion-queue-url}") String queueUrl) {
-        // Build the synchronous SQS client scoped to the specified AWS region
         this.sqsClient = SqsClient.builder().region(Region.of(region)).build();
         this.queueUrl = queueUrl;
     }
 
     /**
-     * Publishes a document ID to the configured SQS queue.
-     * 
-     * @param documentId The unique identifier of the document awaiting ingestion.
+     * Sends a document ID to the ingestion queue.
+     *
+     * @param documentId the document awaiting ingestion
      */
     public void enqueue(UUID documentId) {
-        // Construct the message payload with the UUID string and send it to the queue
         sqsClient.sendMessage(SendMessageRequest.builder()
                 .queueUrl(queueUrl)
                 .messageBody(documentId.toString())

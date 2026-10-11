@@ -44,11 +44,14 @@ aws ssm put-parameter --name /rag-backend/duckdns-token --type SecureString --ti
 
 Set duckdns_domain in terraform.tfvars if your subdomain isn't garrett-rag.
 
-Optionally restrict the public API to your own IP in terraform.tfvars:
+The public link is served over HTTPS by a Caddy sidecar that obtains a free
+Let's Encrypt certificate for the DuckDNS hostname. The Spring Boot container
+listens only on 127.0.0.1, so port 8080 is not reachable from the internet.
+The link is public: anyone who has it can upload files and spend Bedrock
+credits.
 
-~~~hcl
-app_ingress_cidr_blocks = ["203.0.113.45/32"]
-~~~
+Leave app_ingress_cidr_blocks at 0.0.0.0/0: Let's Encrypt must reach port 80
+to issue each new task's certificate.
 
 The generated app and worker passwords are stored in Secrets Manager, but
 their Terraform inputs still exist in Terraform state. Keep state encrypted
@@ -103,11 +106,20 @@ aws logs tail $logGroup --follow
 ## Reach the demo
 
 ~~~powershell
-terraform output -raw app_url   # http://garrett-rag.duckdns.org:8080/
+terraform output -raw app_url   # https://garrett-rag.duckdns.org/
 ~~~
 
-Open the URL, upload a text file, and ask questions about it in the included
-UI. Access is HTTP-only.
+Open the URL, upload a text file, and ask questions about it in the included UI. Plain HTTP redirects to
+HTTPS.
+
+Each new task requests a fresh certificate about a minute after DuckDNS is
+updated. Let's Encrypt allows 5 certificates for the same hostname per week, so
+many redeploys in a short period can leave the site without HTTPS until the
+limit resets. Check the proxy logs if the certificate is missing:
+
+~~~powershell
+aws logs tail $logGroup --since 30m --log-stream-name-prefix proxy
+~~~
 
 Each new task updates DuckDNS once the app responds on localhost, so expect
 1-3 minutes of downtime per redeploy or Spot replacement, plus up to a minute
