@@ -132,8 +132,10 @@ resource "aws_ecs_task_definition" "app" {
     },
     {
       # The only publicly reachable container: terminates HTTPS with an
-      # automatically issued Let's Encrypt certificate for the DuckDNS hostname
-      # and proxies to the app over localhost.
+      # automatically issued certificate for the DuckDNS hostname and proxies
+      # to the app over localhost. Let's Encrypt is tried first, then ZeroSSL
+      # if it fails (for example when rate-limited). Certificates live on EFS
+      # so replacement tasks reuse them instead of requesting new ones.
       # Waits for dns-update so the ACME HTTP challenge reaches this task, not
       # the one being replaced.
       name       = "https-proxy"
@@ -143,6 +145,14 @@ resource "aws_ecs_task_definition" "app" {
       command = [<<-EOT
         sleep 60
         cat > /etc/caddy/Caddyfile <<'CADDY'
+        {
+          email {$ACME_EMAIL}
+          cert_issuer acme
+          cert_issuer acme {
+            dir https://acme.zerossl.com/v2/DV90
+            email {$ACME_EMAIL}
+          }
+        }
         {$DOMAIN} {
           header Strict-Transport-Security "max-age=31536000"
           reverse_proxy 127.0.0.1:${var.container_port}
@@ -161,8 +171,13 @@ resource "aws_ecs_task_definition" "app" {
         { containerPort = 443, protocol = "tcp" },
       ]
 
+      mountPoints = [
+        { sourceVolume = "caddy-data", containerPath = "/data", readOnly = false },
+      ]
+
       environment = [
         { name = "DOMAIN", value = format("%s.duckdns.org", var.duckdns_domain) },
+        { name = "ACME_EMAIL", value = var.acme_email },
       ]
 
       logConfiguration = {
@@ -216,6 +231,15 @@ resource "aws_ecs_task_definition" "app" {
     },
   ])
 
+  volume {
+    name = "caddy-data"
+
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.caddy.id
+      transit_encryption = "ENABLED"
+    }
+  }
+
   tags = local.resource_tags
 }
 
@@ -235,7 +259,8 @@ resource "aws_ecs_service" "app" {
 
   force_new_deployment = true
 
-  depends_on = [aws_ecs_cluster_capacity_providers.main]
+  # Tasks can't mount EFS until a mount target exists in their subnet.
+  depends_on = [aws_ecs_cluster_capacity_providers.main, aws_efs_mount_target.caddy]
 
   network_configuration {
     subnets          = aws_subnet.public[*].id

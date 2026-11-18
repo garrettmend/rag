@@ -35,6 +35,12 @@ resource "aws_db_instance" "main" {
   tags = merge(local.resource_tags, {
     Name = format("%s-db", var.project_name)
   })
+
+  # auto_minor_version_upgrade moves the live version (e.g. 16.13) past the
+  # major-version prefix above; don't try to "change" it back.
+  lifecycle {
+    ignore_changes = [engine_version]
+  }
 }
 
 resource "random_password" "app_db_password" {

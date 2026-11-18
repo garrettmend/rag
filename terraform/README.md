@@ -42,16 +42,25 @@ in Terraform state:
 aws ssm put-parameter --name /rag-backend/duckdns-token --type SecureString --tier Standard --value <duckdns-token>
 ~~~
 
-Set duckdns_domain in terraform.tfvars if your subdomain isn't garrett-rag.
+Create terraform/terraform.tfvars (it is gitignored) with the email to use
+for the certificate authority accounts, and set duckdns_domain there too if
+your subdomain isn't garrett-rag:
+
+~~~hcl
+acme_email = "you@example.com"
+~~~
 
 The public link is served over HTTPS by a Caddy sidecar that obtains a free
-Let's Encrypt certificate for the DuckDNS hostname. The Spring Boot container
-listens only on 127.0.0.1, so port 8080 is not reachable from the internet.
-The link is public: anyone who has it can upload files and spend Bedrock
-credits.
+certificate for the DuckDNS hostname from Let's Encrypt, falling back to
+ZeroSSL if Let's Encrypt refuses (for example, when rate-limited). Caddy keeps
+its certificates and ACME accounts on a small encrypted EFS file system, so
+redeploys and Spot replacements reuse the existing certificate instead of
+requesting a new one. The Spring Boot container listens only on 127.0.0.1, so
+port 8080 is not reachable from the internet. The link is public: anyone who
+has it can upload files and spend Bedrock credits.
 
-Leave app_ingress_cidr_blocks at 0.0.0.0/0: Let's Encrypt must reach port 80
-to issue each new task's certificate.
+Leave app_ingress_cidr_blocks at 0.0.0.0/0: the certificate authority must
+reach port 80 to issue and renew the certificate.
 
 The generated app and worker passwords are stored in Secrets Manager, but
 their Terraform inputs still exist in Terraform state. Keep state encrypted
@@ -112,10 +121,12 @@ terraform output -raw app_url   # https://garrett-rag.duckdns.org/
 Open the URL, upload a text file, and ask questions about it in the included UI. Plain HTTP redirects to
 HTTPS.
 
-Each new task requests a fresh certificate about a minute after DuckDNS is
-updated. Let's Encrypt allows 5 certificates for the same hostname per week, so
-many redeploys in a short period can leave the site without HTTPS until the
-limit resets. Check the proxy logs if the certificate is missing:
+Only the first task, or one that starts after the EFS file system is
+recreated, requests a certificate, about a minute after DuckDNS is updated.
+Later tasks load the stored certificate, and Caddy renews it in place. Before
+the certificates were stored on EFS, Spot replacements alone used up Let's
+Encrypt's limit of 5 certificates per hostname per week. Check the proxy logs
+if the certificate is missing:
 
 ~~~powershell
 aws logs tail $logGroup --since 30m --log-stream-name-prefix proxy

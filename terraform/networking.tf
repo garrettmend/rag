@@ -61,7 +61,7 @@ resource "aws_route_table_association" "public" {
 
 resource "aws_security_group" "app" {
   name        = format("%s-app-sg", var.project_name)
-  description = "Inbound HTTP(S) to the proxy and all outbound traffic"
+  description = "Inbound RAG API traffic and all outbound traffic"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -73,7 +73,7 @@ resource "aws_security_group" "app" {
   }
 
   ingress {
-    description = "HTTP redirect to HTTPS and Let's Encrypt HTTP challenge"
+    description = "HTTP redirect to HTTPS and Lets Encrypt HTTP challenge"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -90,6 +90,24 @@ resource "aws_security_group" "app" {
 
   tags = merge(local.resource_tags, {
     Name = format("%s-app-sg", var.project_name)
+  })
+}
+
+resource "aws_security_group" "efs" {
+  name        = format("%s-efs-sg", var.project_name)
+  description = "NFS from the RAG ECS task to the certificate store"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "NFS from app task"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app.id]
+  }
+
+  tags = merge(local.resource_tags, {
+    Name = format("%s-efs-sg", var.project_name)
   })
 }
 

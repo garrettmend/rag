@@ -38,6 +38,9 @@ build/
 *.tfstate.*
 crash.log
 
+# Holds personal settings such as the ACME contact email
+*.tfvars
+
 # Saved plans embed sensitive values (generated DB passwords)
 terraform/tfplan
 *.tfplan

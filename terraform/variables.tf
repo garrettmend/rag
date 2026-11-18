@@ -86,6 +86,16 @@ variable "duckdns_token_parameter_name" {
   default     = "/rag-backend/duckdns-token"
 }
 
+variable "acme_email" {
+  description = "Contact email for the certificate authority accounts. ZeroSSL, the fallback when Let's Encrypt is rate-limited, requires one. Set it in terraform.tfvars."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.acme_email))
+    error_message = "acme_email must be an email address."
+  }
+}
+
 variable "caddy_image" {
   description = "Caddy image for the HTTPS proxy sidecar."
   type        = string
