@@ -63,9 +63,20 @@ Leave app_ingress_cidr_blocks at 0.0.0.0/0: the certificate authority must
 reach port 80 to issue and renew the certificate.
 
 The generated app and worker passwords are stored in Secrets Manager, but
-their Terraform inputs still exist in Terraform state. Keep state encrypted
-and access-controlled; configure a remote backend before using this beyond a
-short-lived demo.
+their Terraform inputs still exist in Terraform state. State is kept in a
+private, versioned, encrypted S3 bucket (see the backend block in
+versions.tf) with S3-native locking. The bucket is created outside Terraform,
+once per account:
+
+~~~powershell
+$bucket = "rag-backend-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+aws s3api create-bucket --bucket $bucket --region us-east-1
+aws s3api put-public-access-block --bucket $bucket --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-versioning --bucket $bucket --versioning-configuration Status=Enabled
+~~~
+
+If you deploy into a different account, change the bucket name in
+versions.tf to match.
 
 ## Deploy from PowerShell
 

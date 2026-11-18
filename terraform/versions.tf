@@ -1,5 +1,15 @@
 terraform {
-  required_version = ">= 1.7"
+  required_version = ">= 1.10"
+
+  # Created outside Terraform (see README). Versioned and encrypted; S3-native
+  # locking needs Terraform 1.10+.
+  backend "s3" {
+    bucket       = "rag-backend-tfstate-682595228339"
+    key          = "rag-backend/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 
   required_providers {
     aws = {
